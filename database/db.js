@@ -2,14 +2,8 @@ const mongoose = require('mongoose');
 
 const connectDatabase = async (dbName = "2cs") => {
     try {
-        // let baseUri = process.env.MONGO_URI;
         // live db
-        let baseUri = "mongodb+srv://chandrufsdtesting:vPvnQQrVyMMMKH1O@cluster0.2syaxg8.mongodb.net/";
-        // LOCAL DB
-        // let baseUri = "mongodb://localhost:27017/2cs";
-
-        console.log("baseUri", baseUri);
-        
+        let baseUri = process.env.MONGO_URI;        
         // Ensure the base URI doesn't have a trailing '/
 
         const updatedUri = `${baseUri}${dbName}`;
