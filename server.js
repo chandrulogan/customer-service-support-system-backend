@@ -2,14 +2,19 @@ const express = require('express');
 const { createServer } = require('node:http');
 const { Server } = require('socket.io');
 const { body, validationResult } = require('express-validator'); // For input validation
-const mongoose = require('mongoose');
 const connectDatabase = require('./database/db');
 
+// pubs/subs
+const { createAdapter } = require('@socket.io/redis-adapter');
+const { createClient } = require('redis');
+
+// schema
 const Organisation = require('./schema/organisation_Schema');
 const Employees = require('./schema/employee_Schema');
 const Customer = require('./schema/customers_Schema');
 const Queue = require('./schema/queue_Schema');
 
+// server initilizations
 const app = express();
 const server = createServer(app);
 const io = new Server(server, {
@@ -17,6 +22,17 @@ const io = new Server(server, {
         origin: "*",
         methods: ["GET", "POST"]
     }
+});
+
+// Redis Pub/Sub setup
+const pubClient = createClient({
+    url: 'redis://default:fMCQhovlc8CUVOQWlHnYW5h2WkGs4xck@redis-10633.c11.us-east-1-3.ec2.redns.redis-cloud.com:10633' // Use 'redis://' as the prefix
+});
+const subClient = pubClient.duplicate();
+
+Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
+    console.log('Connected to Redis');
+    io.adapter(createAdapter(pubClient, subClient));
 });
 
 const port = 1997;
@@ -165,10 +181,10 @@ app.get('/queue-status', async (req, res, next) => {
             .populate('assignedAgent', 'name organisation');
 
         // Emit real-time update
-        // io.emit('queue-list', {
-        //     message: 'Queue list',
-        //     queueItem: queue,
-        // });
+        io.emit('queue-list', {
+            message: 'Queue list',
+            queueItem: queue,
+        });
         res.status(200).json(queue);
     } catch (error) {
         next(error);
