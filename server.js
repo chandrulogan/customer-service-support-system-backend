@@ -1,12 +1,9 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-const { Server } = require('socket.io');
-const { createServer } = require('http');
 const { createClient } = require('redis');
 const { createAdapter } = require('@socket.io/redis-adapter');
+const { Server } = require('socket.io');
+const { createServer } = require('http');
 const connectDatabase = require('./database/db');
-const Employees = require('./schema/employee_Schema');
 const Queue = require('./schema/queue_Schema');
 require('dotenv').config();
 
@@ -19,9 +16,9 @@ const io = new Server(server, {
     },
 });
 
-// Redis Setup
+// Redis setup for Pub/Sub
 const pubClient = createClient({
-    url: process.env.REDIS_CONNECTION_STRING, // e.g., 'redis://default:<password>@<host>:<port>'
+    url: process.env.REDIS_CONNECTION_STRING,
 });
 const subClient = pubClient.duplicate();
 
@@ -32,125 +29,39 @@ Promise.all([pubClient.connect(), subClient.connect()])
     })
     .catch((err) => console.error('Redis connection error:', err));
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
-
+// Middleware to parse JSON
 app.use(express.json());
 connectDatabase();
 
 // **Socket.IO - Real-Time Events**
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+    console.log('Queue Service connected:', socket.id);
+
+    // Listen for 'agent-logged-in' event
+    socket.on('agent-logged-in', (data) => {
+        console.log('Agent Logged In:', data);
+        // You can implement your logic here when an agent logs in.
+        // For example, update the UI or notify other parts of the system.
+    });
 
     // Handle disconnection
     socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
+        console.log('Queue Service disconnected:', socket.id);
     });
 });
 
-// **Add an Agent**
-app.post('/add-agent', async (req, res, next) => {
+// **Queue Status Endpoint**
+app.get('/queue-status', async (req, res, next) => {
     try {
-        const { name, organisation, password } = req.body;
-
-        if (!name || !organisation || !password) {
-            return res.status(400).json({ message: 'Name, organisation, and password are required' });
-        }
-
-        // Check for duplicate name and organisation
-        const existingEmployee = await Employees.findOne({ name, organisation });
-        if (existingEmployee) {
-            return res.status(400).json({ message: 'Agent already exists' });
-        }
-
-        // Hash the password before saving
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Create a new employee
-        const newEmployee = new Employees({ name, organisation, password: hashedPassword });
-        await newEmployee.save();
-
-        console.log('New Employee:', newEmployee);
-        res.status(201).json({ message: 'Agent added successfully', agent: newEmployee });
-    } catch (error) {
-        console.error('Error adding agent:', error.message);
-        res.status(500).json({ message: 'Internal Server Error', error: error.message });
-    }
-});
-
-// **Agent Login**
-app.post('/login-agent', async (req, res, next) => {
-    try {
-        const { name, password } = req.body;
-
-        if (!name || !password) {
-            return res.status(400).json({ message: 'Name and password are required' });
-        }
-
-        // Find the agent by name
-        const agent = await Employees.findOne({ name }).select('+password');
-        if (!agent) {
-            return res.status(400).json({ message: 'Invalid credentials' });
-        }
-
-        // Compare passwords
-        const isPasswordValid = await bcrypt.compare(password, agent.password);
-        if (!isPasswordValid) {
-            return res.status(400).json({ message: 'Invalid credentials' });
-        }
-
-        // Generate a JWT
-        const token = jwt.sign(
-            { id: agent._id, name: agent.name, organisation: agent.organisation },
-            JWT_SECRET,
-            { expiresIn: '1h' }
-        );
-
-        // Emit a real-time event for successful login
-        io.emit('agent-logged-in', {
-            message: 'An agent has logged in',
-            agent: { id: agent._id, name: agent.name, organisation: agent.organisation },
-        });
-
-        res.status(200).json({
-            message: 'Login successful',
-            token,
-        });
-    } catch (error) {
-        console.error('Error logging in:', error.message);
-        res.status(500).json({ message: 'Internal Server Error', error: error.message });
-    }
-});
-
-// **Assign Agent to a Customer**
-app.post('/assign-agent', async (req, res, next) => {
-    try {
-        const { agentId } = req.body;
-
-        if (!agentId) {
-            return res.status(400).json({ message: 'Agent ID is required' });
-        }
-
-        const nextCustomer = await Queue.findOne({ status: 'Pending' }).sort({ createdAt: 1 });
-        if (!nextCustomer) {
-            return res.status(404).json({ message: 'No customers in the queue' });
-        }
-
-        nextCustomer.assignedAgent = agentId;
-        nextCustomer.status = 'In Progress';
-        await nextCustomer.save();
-
-        // Emit a real-time event for agent assignment
-        io.emit('agent-assigned', {
-            message: 'An agent has been assigned to a customer',
-            queueItem: nextCustomer,
-        });
-
-        res.status(200).json({ message: 'Agent assigned successfully', queueItem: nextCustomer });
+        const queue = await Queue.find()
+            .populate('customer')
+            .populate('assignedAgent');
+        res.status(200).json(queue);
     } catch (error) {
         next(error);
     }
 });
 
 // **Start the Server**
-const PORT = process.env.PORT || 3003;
-server.listen(PORT, () => console.log(`Agent Service running on port ${PORT}`));
+const PORT = process.env.PORT || 3004;
+server.listen(PORT, () => console.log(`Queue Service running on port ${PORT}`));
