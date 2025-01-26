@@ -126,6 +126,7 @@ app.post('/add-agent', async (req, res, next) => {
 });
 
 // **Customer Connect**
+// **Customer Connect (Redis-based Queue Management)**
 app.post('/customer-connect', async (req, res, next) => {
     try {
         const { name, connect_Reason } = req.body;
@@ -134,17 +135,57 @@ app.post('/customer-connect', async (req, res, next) => {
             return res.status(400).json({ message: 'Name and connect reason are required!' });
         }
 
-        const newCustomer = new Customer({ name, connect_Reason });
-        await newCustomer.save();
+        // Step 1: Create customer metadata
+        const newCustomer = { id: Date.now(), name, connect_Reason };
+
+        // Step 2: Add the customer to the Redis queue
+        await pubClient.lPush('customerQueue', JSON.stringify(newCustomer));
+
+        // Step 3: Emit real-time update via Socket.IO
+        io.emit('customer-added', {
+            message: 'A new customer was added to the queue',
+            customer: newCustomer,
+        });
 
         res.status(201).json({
-            message: 'Customer connected successfully!',
-            customer: { id: newCustomer._id, name: newCustomer.name },
+            message: 'Customer added to the queue successfully!',
+            customer: newCustomer,
         });
     } catch (error) {
-        next(error);
+        console.error('Error in customer-connect:', error.message);
+        res.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
 });
+
+// **Get Next Customer from the Queue**
+app.get('/process-next-customer', async (req, res, next) => {
+    try {
+        // Step 1: Get the next customer from the Redis queue
+        const nextCustomerData = await pubClient.rPop('customerQueue');
+
+        if (!nextCustomerData) {
+            return res.status(404).json({ message: 'No customers in the queue.' });
+        }
+
+        const nextCustomer = JSON.parse(nextCustomerData);
+
+        // Step 2: Emit real-time update for queue processing
+        io.emit('customer-processed', {
+            message: 'A customer was processed from the queue',
+            customer: nextCustomer,
+        });
+
+        res.status(200).json({
+            message: 'Customer processed successfully!',
+            customer: nextCustomer,
+        });
+    } catch (error) {
+        console.error('Error in process-next-customer:', error.message);
+        res.status(500).json({ message: 'Internal Server Error', error: error.message });
+    }
+});
+
+
 
 // **Add to Queue**
 app.post('/real-time/add-to-queue', async (req, res, next) => {
