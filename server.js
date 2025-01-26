@@ -185,8 +185,6 @@ app.get('/process-next-customer', async (req, res, next) => {
     }
 });
 
-
-
 // **Add to Queue**
 app.post('/real-time/add-to-queue', async (req, res, next) => {
     try {
