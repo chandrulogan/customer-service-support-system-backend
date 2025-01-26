@@ -62,11 +62,8 @@ app.post('/add-agent', async (req, res, next) => {
             return res.status(400).json({ message: 'Agent already exists' });
         }
 
-        // Hash the password before saving
-        const hashedPassword = await bcrypt.hash(password, 10);
-
         // Create a new employee
-        const newEmployee = new Employees({ name, organisation, password: hashedPassword });
+        const newEmployee = new Employees({ name, organisation, password: password });
         await newEmployee.save();
 
         console.log('New Employee:', newEmployee);
@@ -80,46 +77,38 @@ app.post('/add-agent', async (req, res, next) => {
 // **Agent Login**
 app.post('/login-agent', async (req, res, next) => {
     try {
-        const { name, password } = req.body;
+        const { organisation, name, password } = req.body;
 
-        if (!name || !password) {
-            return res.status(400).json({ message: 'Name and password are required' });
+        // Step 1: Validate input
+        if (!organisation || !name || !password) {
+            return res.status(400).json({ message: 'Organisation, name, and password are required' });
         }
 
-        // Find the agent by name
-        const agent = await Employees.findOne({ name }).select('+password');
+        // Step 2: Find the agent within the organisation
+        const agent = await Employees.findOne({ organisation, name, password });
         if (!agent) {
-            return res.status(400).json({ message: 'Invalid credentials' });
+            return res.status(400).json({ message: 'Agent not found within the organisation' });
         }
 
-        // Compare passwords
-        const isPasswordValid = await bcrypt.compare(password, agent.password);
-        if (!isPasswordValid) {
-            return res.status(400).json({ message: 'Invalid credentials' });
-        }
 
-        // Generate a JWT
-        const token = jwt.sign(
-            { id: agent._id, name: agent.name, organisation: agent.organisation },
-            JWT_SECRET,
-            { expiresIn: '1h' }
-        );
-
-        // Emit a real-time event for successful login
+        // Step 5: Emit a real-time event for successful login
         io.emit('agent-logged-in', {
             message: 'An agent has logged in',
             agent: { id: agent._id, name: agent.name, organisation: agent.organisation },
         });
 
+        // Respond with success
         res.status(200).json({
             message: 'Login successful',
-            token,
         });
+        
     } catch (error) {
         console.error('Error logging in:', error.message);
         res.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
 });
+
+
 
 // **Assign Agent to a Customer**
 app.post('/assign-agent', async (req, res, next) => {
