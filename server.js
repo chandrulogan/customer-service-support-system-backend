@@ -47,6 +47,7 @@ io.on('connection', (socket) => {
 });
 
 // **Add a Customer**
+// **Add a Customer**
 app.post('/customer-connect', async (req, res, next) => {
     try {
         const { name, connect_Reason } = req.body;
@@ -55,10 +56,18 @@ app.post('/customer-connect', async (req, res, next) => {
             return res.status(400).json({ message: 'Name and connect reason are required' });
         }
 
-        const newCustomer = new Customer({ name, connect_Reason });
-        await newCustomer.save();
+        // Step 1: Create the customer object
+        const customerId = Date.now(); // Unique ID for Redis and MongoDB
+        const newCustomer = { id: customerId, name, connect_Reason, status: 'Pending', createdAt: new Date() };
 
-        // Emit a real-time event to notify about the new customer
+        // Step 2: Save to Redis
+        await pubClient.lPush('customerQueue', JSON.stringify(newCustomer)); // Add to Redis list
+
+        // Step 3: Save to MongoDB
+        const savedCustomer = new Customer(newCustomer);
+        await savedCustomer.save();
+
+        // Step 4: Emit a real-time event to notify connected clients
         io.emit('customer-connected', {
             message: 'A new customer has connected',
             customer: newCustomer,
@@ -69,9 +78,11 @@ app.post('/customer-connect', async (req, res, next) => {
             customer: newCustomer,
         });
     } catch (error) {
-        next(error);
+        console.error('Error in customer-connect:', error.message);
+        res.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
 });
+
 
 // **Error Handling Middleware**
 app.use((err, req, res, next) => {
