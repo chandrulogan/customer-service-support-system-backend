@@ -53,14 +53,34 @@ io.on('connection', (socket) => {
 // **Queue Status Endpoint**
 app.get('/queue-status', async (req, res, next) => {
     try {
+        // Check if the data exists in Redis
+        const cachedQueue = await pubClient.lRange('customerQueue', 0, -1);
+
+        if (cachedQueue && cachedQueue.length > 0) {
+            console.log('Cache hit: Returning data from Redis');
+            const queue = cachedQueue.map((item) => JSON.parse(item)); // Parse each Redis entry
+            return res.status(200).json(queue);
+        }
+
+        console.log('Cache miss: Fetching data from MongoDB');
+        // Fetch data from MongoDB
         const queue = await Queue.find()
             .populate('customer')
             .populate('assignedAgent');
+
+        // Save each item to Redis separately
+        for (const item of queue) {
+            await pubClient.rPush('customerQueue', JSON.stringify(item)); // Save each item
+        }
+
         res.status(200).json(queue);
     } catch (error) {
-        next(error);
+        console.error('Error fetching queue status:', error.message);
+        res.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
 });
+
+
 
 // **Start the Server**
 const PORT = process.env.PORT || 3004;
