@@ -6,10 +6,13 @@ const { Server } = require('socket.io');
 const { createServer } = require('http');
 const connectDatabase = require('./database/db');
 const Customer = require('./schema/customers_Schema');
+const { producer, consumer, connectKafka } = require('./kafkaConfig');
 
-// Initialize Express and Socket.IO
+// Initialize Express Application
 const app = express();
 const server = createServer(app);
+
+// Initialize Socket.IO with CORS configuration
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -17,10 +20,8 @@ const io = new Server(server, {
     },
 });
 
-// Redis Setup
-const pubClient = createClient({
-    url: process.env.REDIS_CONNECTION_STRING,
-});
+// **Redis Setup**
+const pubClient = createClient({ url: process.env.REDIS_CONNECTION_STRING });
 const subClient = pubClient.duplicate();
 
 Promise.all([pubClient.connect(), subClient.connect()])
@@ -30,24 +31,26 @@ Promise.all([pubClient.connect(), subClient.connect()])
     })
     .catch((err) => console.error('Redis connection error:', err));
 
-// Middleware to parse JSON
+// **Kafka Setup**
+connectKafka().catch((err) => console.error("Error connecting to Kafka:", err));
+
+// **Middleware to parse JSON requests**
 app.use(express.json());
 
-// Connect to MongoDB
+// **Connect to MongoDB**
 connectDatabase();
 
-// **Socket.IO - Real-Time Events**
+// **Socket.IO - Handle Real-Time Connections**
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
-    // Handle disconnection
+    // Handle user disconnection
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
     });
 });
 
-// **Add a Customer**
-// **Add a Customer**
+// **API Endpoint: Add a Customer**
 app.post('/customer-connect', async (req, res, next) => {
     try {
         const { name, connect_Reason } = req.body;
@@ -57,34 +60,56 @@ app.post('/customer-connect', async (req, res, next) => {
         }
 
         // Step 1: Create the customer object
-        const customerId = Date.now(); // Unique ID for Redis and MongoDB
+        const customerId = Date.now(); // Generate unique ID
         const newCustomer = { id: customerId, name, connect_Reason, status: 'Pending', createdAt: new Date() };
 
-        // Step 2: Save to Redis
-        await pubClient.lPush('customerQueue', JSON.stringify(newCustomer)); // Add to Redis list
+        // Step 2: Save customer to Redis queue
+        await pubClient.lPush('customerQueue', JSON.stringify(newCustomer));
 
-        // Step 3: Save to MongoDB
+        // Step 3: Save customer to MongoDB
         const savedCustomer = new Customer(newCustomer);
         await savedCustomer.save();
 
-        // Step 4: Emit a real-time event to notify connected clients
+        // Step 4: Emit real-time event for new customer connection
         io.emit('customer-connected', {
             message: 'A new customer has connected',
             customer: newCustomer,
         });
 
-        res.status(201).json({
-            message: 'Customer connected successfully',
-            customer: newCustomer,
+        // Step 5: Produce Kafka message with customer data
+        await producer.send({
+            topic: 'topic_0',
+            messages: [{ key: newCustomer.id.toString(), value: JSON.stringify(newCustomer), partition: 0 }],
         });
+        console.log(`Kafka message produced for customer: ${newCustomer.id}`);
+
+        res.status(201).json({ message: 'Customer connected successfully', customer: newCustomer });
     } catch (error) {
         console.error('Error in customer-connect:', error.message);
         res.status(500).json({ message: 'Internal Server Error', error: error.message });
     }
 });
 
+// **Start Kafka Consumer**
+async function startConsumer() {
+    await consumer.subscribe({ topic: 'topic_0', fromBeginning: true });
+    console.log('Kafka consumer subscribed to topic: customerTopic');
 
-// **Error Handling Middleware**
+    await consumer.run({
+        eachMessage: async ({ topic, partition, message }) => {
+            const customer = JSON.parse(message.value.toString());
+            console.log(`Consumed message from topic ${topic}:`, customer);
+
+            // Add additional processing logic if needed
+        },
+    });
+}
+
+startConsumer().catch((err) =>
+    console.error('Error in Kafka consumer:', err.message)
+);
+
+// **Global Error Handling Middleware**
 app.use((err, req, res, next) => {
     console.error('Error:', err.message);
     res.status(500).json({ message: 'Internal Server Error', error: err.message });
