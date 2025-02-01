@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
 
-const queueSchema = mongoose.Schema({
-    customer: { type: String, required: true }, // Change to String
+const queueSchema = new mongoose.Schema({
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
+    assignedAgent: { type: mongoose.Schema.Types.ObjectId, ref: 'Employees', default: null },
     issue: { type: String, required: true },
-    status: { type: String, default: 'Pending', enum: ['Pending', 'In Progress', 'Resolved'] },
-    assignedAgent: { type: mongoose.Schema.Types.ObjectId, default: null },
-    createdAt: { type: Date, default: Date.now },
+    status: { type: String, enum: ['Pending', 'In Progress', 'Resolved'], default: 'Pending' },
+    createdAt: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('Queue', queueSchema);

@@ -3,15 +3,22 @@ const { createServer } = require('node:http');
 const { Server } = require('socket.io');
 const { body, validationResult } = require('express-validator');
 const connectDatabase = require('./database/db');
+const { connectKafka } = require('./kafkaConfig');
+const { initializeSocket } = require("./socket"); // Import WebSocket
 
 const Organisation = require('./schema/organisation_Schema');
 const Employees = require('./schema/employee_Schema');
 const Customer = require('./schema/customers_Schema');
 const Queue = require('./schema/queue_Schema');
 const Chat = require('./schema/chat_Schema'); // New Chat Schema
+const { customerConnect } = require('./controller/queue/customerController');
+const { startAgentAssignmentConsumer } = require("./controller/kafka/assignAgentConsumer");
 
 const app = express();
 const server = createServer(app);
+// Initialize WebSocket
+initializeSocket(server);
+
 const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
 });
@@ -20,6 +27,9 @@ const port = 1997;
 // Middleware
 app.use(express.json());
 connectDatabase(); // Connect to MongoDB
+
+// **Connect to Kafka (Only Once)**
+connectKafka().catch((err) => console.error("Error connecting to Kafka:", err));
 
 // **Socket.IO for real-time updates**
 io.on('connection', (socket) => {
@@ -76,16 +86,8 @@ app.post('/add-agent', async (req, res, next) => {
 });
 
 // **Customer Connect**
-app.post('/customer-connect', async (req, res, next) => {
-    try {
-        const { name, connect_Reason } = req.body;
-        if (!name || !connect_Reason) return res.status(400).json({ message: 'Name and connect reason are required!' });
-        const newCustomer = new Customer({ name, connect_Reason });
-        await newCustomer.save();
-        io.emit('customer-queue', { message: 'New customer added to queue.', queueItem: newCustomer });
-        res.status(201).json({ message: 'Customer connected successfully!', customer: { id: newCustomer._id, name } });
-    } catch (error) { next(error); }
-});
+app.post('/customer-connect', customerConnect);
+
 
 // **Add to Queue**
 app.post('/real-time/add-to-queue', async (req, res, next) => {
@@ -133,6 +135,11 @@ app.post('/resolve-customer', async (req, res, next) => {
         res.status(200).json({ message: 'Customer issue resolved successfully!', queueItem });
     } catch (error) { next(error); }
 });
+
+// Start Kafka Consumer for agent assignment
+startAgentAssignmentConsumer().catch((err) =>
+    console.error("Error starting agent assignment consumer:", err)
+);
 
 // private chat implementations
 io.on('connection', (socket) => {
