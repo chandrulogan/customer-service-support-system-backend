@@ -32,7 +32,8 @@ const kafka = new Kafka({
 const producer = kafka.producer();
 
 // Create a Kafka consumer instance with a specific group ID
-const consumer = kafka.consumer({ groupId: "nodejs-group-1" });
+const consumer = kafka.consumer({ groupId: "nodejs-group-1", maxPollRecords: 500 });
+//  maxPollRecords: 500 will fetch the max 500 records
 
 // Function to establish connections for both producer and consumer
 async function connectKafka() {

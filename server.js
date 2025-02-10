@@ -13,6 +13,7 @@ const Queue = require('./schema/queue_Schema');
 const Chat = require('./schema/chat_Schema'); // New Chat Schema
 const { customerConnect } = require('./controller/queue/customerController');
 const { startAgentAssignmentConsumer } = require("./controller/kafka/assignAgentConsumer");
+const { agentLogin } = require('./controller/queue/agentLogin');
 
 const app = express();
 const server = createServer(app);
@@ -77,16 +78,31 @@ app.post('/organisation-signup', [
 app.post('/add-agent', async (req, res, next) => {
     try {
         const { name, organisation } = req.body;
-        if (!name || !organisation) return res.status(400).json({ message: 'Name and organisation are required!' });
-        if (await Employees.findOne({ name, organisation })) return res.status(400).json({ message: 'Agent already exists!' });
+        if (!name || !organisation) {
+            return res.status(400).json({ message: 'Name and organisation are required!' });
+        }
+
+        // Check if an employee with the same name already exists
+        // const existingEmployee = await Employees.findOne({ name });
+        // if (existingEmployee) {
+        //     return res.status(400).json({ message: `Employee with name "${name}" already exists!` });
+        // }
+
         const newEmployee = new Employees({ name, organisation });
         await newEmployee.save();
+
         res.status(201).json({ message: 'Agent added successfully!', agent: { id: newEmployee._id, name } });
-    } catch (error) { next(error); }
+    } catch (error) {
+        next(error);
+    }
 });
+
 
 // **Customer Connect**
 app.post('/customer-connect', customerConnect);
+
+// **Agent login**
+app.post('/agent-login', agentLogin);
 
 
 // **Add to Queue**
