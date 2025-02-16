@@ -20,7 +20,7 @@ const agentLogin = async (req, res, next) => {
 
         if (password !== agent.password) {
             return res.status(401).json({ message: 'Invalid credentials!' });
-        }        
+        }
 
         if (!VALID_QUERY_TYPES?.includes(queryType)) res.status(200).json({
             message: 'Invalid Query type',
@@ -28,7 +28,8 @@ const agentLogin = async (req, res, next) => {
         });
 
         // Add agent to Redis queue
-        await redis.lpush(`agentQueue:${queryType}`, JSON.stringify({ agentId, name: agent.name, queryType }));
+        // await redis.lpush(`agentQueue:${queryType}`, JSON.stringify({ agentId, name: agent.name, queryType }));
+        await redis.lpush(`agentQueue`, JSON.stringify({ agentId, name: agent.name, queryType }));
 
         res.status(200).json({
             message: 'Agent logged in successfully and added to queue!',

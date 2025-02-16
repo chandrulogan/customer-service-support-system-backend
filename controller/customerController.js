@@ -24,7 +24,8 @@ const customerConnect = async (req, res, next) => {
         await newCustomer.save();
 
         // Add customer to the Redis queue (organized by query type)
-        await redis.lpush(`customerQueue:${connect_Reason}`, JSON.stringify({
+        // await redis.lpush(`customerQueue:${connect_Reason}`, JSON.stringify({
+        await redis.lpush(`customerQueue`, JSON.stringify({
             id: newCustomer._id,
             name,
             connect_Reason
