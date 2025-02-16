@@ -10,9 +10,11 @@
   "author": "chandru-loganathan",
   "license": "ISC",
   "dependencies": {
+    "bull": "^4.16.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-validator": "^7.2.1",
+    "ioredis": "^5.5.0",
     "joi": "^17.13.3",
     "kafkajs": "^2.2.4",
     "mongoose": "^8.9.5",

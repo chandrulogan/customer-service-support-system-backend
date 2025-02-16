@@ -1,34 +1,40 @@
-const { Kafka } = require('kafkajs');
 const Customer = require('../schema/customers_Schema');
+const redis = require('../redisClient'); // Import Redis client
 
-// Kafka setup
-const kafka = new Kafka({
-    clientId: 'customer-service',
-    brokers: ['<your-confluent-cloud-broker>']
-});
-const producer = kafka.producer();
+const VALID_QUERY_TYPES = ["Billing", "Technical Support", "General Inquiry"]; // Allowed types
 
 const customerConnect = async (req, res, next) => {
     try {
         const { name, connect_Reason } = req.body;
+
+        // Validate input
         if (!name || !connect_Reason) {
             return res.status(400).json({ message: 'Name and connect reason are required!' });
         }
 
+        // Ensure connect_Reason is valid
+        if (!VALID_QUERY_TYPES.includes(connect_Reason)) {
+            return res.status(400).json({
+                message: `Invalid connect reason. Allowed values: ${VALID_QUERY_TYPES.join(", ")}`
+            });
+        }
+
+        // Save customer to database
         const newCustomer = new Customer({ name, connect_Reason });
         await newCustomer.save();
 
-        // Send customer request to Kafka topic
-        await producer.connect();
-        await producer.send({
-            topic: 'customer-queue',
-            messages: [{ value: JSON.stringify({ id: newCustomer._id, name, connect_Reason }) }]
-        });
+        // Add customer to the Redis queue (organized by query type)
+        await redis.lpush(`customerQueue:${connect_Reason}`, JSON.stringify({
+            id: newCustomer._id,
+            name,
+            connect_Reason
+        }));
 
         res.status(201).json({
-            message: 'Customer connected successfully!',
-            customer: { id: newCustomer._id, name }
+            message: 'Customer connected successfully and added to queue!',
+            customer: { id: newCustomer._id, name, connect_Reason }
         });
+
     } catch (error) {
         next(error);
     }

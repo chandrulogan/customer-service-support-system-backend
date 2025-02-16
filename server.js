@@ -3,21 +3,22 @@ const { createServer } = require('node:http');
 const { Server } = require('socket.io');
 const { body, validationResult } = require('express-validator');
 const connectDatabase = require('./database/db');
-const { connectKafka } = require('./kafkaConfig');
-const { initializeSocket } = require("./socket"); // Import WebSocket
+const { initializeSocket } = require("./socket");
+const redis = require('./redisClient'); // Import the Redis client
 
+// schema import
 const Organisation = require('./schema/organisation_Schema');
 const Employees = require('./schema/employee_Schema');
-const Customer = require('./schema/customers_Schema');
 const Queue = require('./schema/queue_Schema');
-const Chat = require('./schema/chat_Schema'); // New Chat Schema
-const { customerConnect } = require('./controller/queue/customerController');
-const { startAgentAssignmentConsumer } = require("./controller/kafka/assignAgentConsumer");
-const { agentLogin } = require('./controller/queue/agentLogin');
+const Chat = require('./schema/chat_Schema');
+
+// controllers import
+const { customerConnect } = require('./controller/customerController');
+const { agentLogin } = require('./controller/agentLogin');
+const assignAgentToCustomer = require('./controller/assignAgentToCustomer'); // Import the function
 
 const app = express();
 const server = createServer(app);
-// Initialize WebSocket
 initializeSocket(server);
 
 const io = new Server(server, {
@@ -25,14 +26,10 @@ const io = new Server(server, {
 });
 const port = 1997;
 
-// Middleware
+
 app.use(express.json());
-connectDatabase(); // Connect to MongoDB
+connectDatabase();
 
-// **Connect to Kafka (Only Once)**
-connectKafka().catch((err) => console.error("Error connecting to Kafka:", err));
-
-// **Socket.IO for real-time updates**
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
@@ -45,16 +42,13 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => console.log('User disconnected:', socket.id));
 });
 
-// **Basic Routes**
 app.get('/', (req, res) => res.send('Hello World!'));
 
-// **Error Handling Middleware**
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({ message: 'Internal Server Error', error: err.message });
 });
 
-// **Organisation Signup**
 app.post('/organisation-signup', [
     body('name').notEmpty().withMessage('Name is required'),
     body('email').isEmail().withMessage('Valid email is required'),
@@ -74,106 +68,81 @@ app.post('/organisation-signup', [
     } catch (error) { next(error); }
 });
 
-// **Add Agent**
 app.post('/add-agent', async (req, res, next) => {
     try {
         const { name, organisation } = req.body;
         if (!name || !organisation) {
             return res.status(400).json({ message: 'Name and organisation are required!' });
         }
-
-        // Check if an employee with the same name already exists
-        // const existingEmployee = await Employees.findOne({ name });
-        // if (existingEmployee) {
-        //     return res.status(400).json({ message: `Employee with name "${name}" already exists!` });
-        // }
-
         const newEmployee = new Employees({ name, organisation });
         await newEmployee.save();
-
         res.status(201).json({ message: 'Agent added successfully!', agent: { id: newEmployee._id, name } });
     } catch (error) {
         next(error);
     }
 });
 
-
-// **Customer Connect**
 app.post('/customer-connect', customerConnect);
-
-// **Agent login**
 app.post('/agent-login', agentLogin);
 
-
-// **Add to Queue**
 app.post('/real-time/add-to-queue', async (req, res, next) => {
     try {
         const { customerId, issue } = req.body;
         if (!customerId || !issue) return res.status(400).json({ message: 'Customer ID and issue are required!' });
-        const newQueueItem = new Queue({ customer: customerId, issue });
-        await newQueueItem.save();
-        io.emit('customer-queue', { message: 'New customer added to queue.', queueItem: newQueueItem });
-        res.status(201).json({ message: 'Customer added to queue successfully!', queueItem: newQueueItem });
+        await redis.lpush('customerQueue', JSON.stringify({ customerId, issue }));
+        io.emit('customer-queue', { message: 'New customer added to queue.', customerId, issue });
+        res.status(201).json({ message: 'Customer added to queue successfully!' });
     } catch (error) { next(error); }
 });
 
-// **Queue Status**
 app.get('/queue-status', async (req, res, next) => {
     try {
-        const queue = await Queue.find().populate('customer', 'name connect_Reason').populate('assignedAgent', 'name organisation');
-        res.status(200).json(queue);
+        const queue = await redis.lrange('customerQueue', 0, -1);
+        res.status(200).json(queue.map(item => JSON.parse(item)));
     } catch (error) { next(error); }
 });
 
-// **Assign Agent**
 app.post('/assign-agent', async (req, res, next) => {
     try {
         const { agentId } = req.body;
         if (!agentId) return res.status(400).json({ message: 'Agent ID is required!' });
-        const nextCustomer = await Queue.findOne({ status: 'Pending' }).sort({ createdAt: 1 }).populate('customer', 'name');
+        const nextCustomer = await redis.rpop('customerQueue');
         if (!nextCustomer) return res.status(404).json({ message: 'No customers in the queue.' });
-        nextCustomer.assignedAgent = agentId;
-        nextCustomer.status = 'In Progress';
-        await nextCustomer.save();
-        res.status(200).json({ message: 'Agent assigned successfully!', queueItem: nextCustomer });
+        res.status(200).json({ message: 'Agent assigned successfully!', queueItem: JSON.parse(nextCustomer) });
     } catch (error) { next(error); }
 });
 
-// **Resolve Customer**
 app.post('/resolve-customer', async (req, res, next) => {
     try {
         const { queueId } = req.body;
         if (!queueId) return res.status(400).json({ message: 'Queue ID is required!' });
-        const queueItem = await Queue.findById(queueId);
-        if (!queueItem) return res.status(404).json({ message: 'Queue item not found!' });
-        queueItem.status = 'Resolved';
-        await queueItem.save();
-        res.status(200).json({ message: 'Customer issue resolved successfully!', queueItem });
+        res.status(200).json({ message: 'Customer issue resolved successfully!' });
     } catch (error) { next(error); }
 });
 
-// Start Kafka Consumer for agent assignment
-startAgentAssignmentConsumer().catch((err) =>
-    console.error("Error starting agent assignment consumer:", err)
-);
+app.post('/create-queue', async (req, res, next) => {
+    try {
+        const { queueId } = req.body;
+        if (!queueId) return res.status(400).json({ message: 'Queue ID is required!' });
+        res.status(200).json({ message: 'Customer issue resolved successfully!' });
+    } catch (error) { next(error); }
+})
 
-// private chat implementations
+assignAgentToCustomer(); // Start the worker process
+
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
-    // **Join a Private Room for Customer-Agent Chat**
     socket.on('join-room', ({ customerId, agentId }) => {
         const roomId = `${customerId}-${agentId}`;
         socket.join(roomId);
         console.log(`User joined room: ${roomId}`);
     });
 
-    // **Send a Message to a Specific User**
     socket.on('send-message', async ({ customerId, agentId, senderId, message }) => {
         try {
             const newMessage = new Chat({ customer: customerId, agent: agentId, sender: senderId, message });
             await newMessage.save();
-
             const roomId = `${customerId}-${agentId}`;
             io.to(roomId).emit('receive-message', { senderId, message, timestamp: newMessage.timestamp });
         } catch (error) {
@@ -181,7 +150,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // **Get Chat History**
     socket.on('get-messages', async ({ customerId, agentId }) => {
         try {
             const messages = await Chat.find({ customer: customerId, agent: agentId }).sort({ timestamp: 1 });
@@ -194,5 +162,4 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => console.log('User disconnected:', socket.id));
 });
 
-// **Start the Server**
 server.listen(port, () => console.log(`Server is running on http://localhost:${port}`));
