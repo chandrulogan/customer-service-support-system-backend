@@ -15,7 +15,7 @@ const Chat = require('./schema/chat_Schema');
 // controllers import
 const { customerConnect } = require('./controller/customerController');
 const { agentLogin } = require('./controller/agentLogin');
-const assignAgentToCustomer = require('./controller/assignAgentToCustomer'); // Import the function
+const processQueue = require('./controller/queueWorker');
 
 const app = express();
 const server = createServer(app);
@@ -128,7 +128,8 @@ app.post('/create-queue', async (req, res, next) => {
     } catch (error) { next(error); }
 })
 
-assignAgentToCustomer(); // Start the worker process
+console.log("🔄 Starting processQueue...");
+processQueue();
 
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);

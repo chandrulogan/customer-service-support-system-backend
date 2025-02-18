@@ -7,15 +7,13 @@ const customerConnect = async (req, res, next) => {
     try {
         const { name, connect_Reason } = req.body;
 
-        // Validate input
         if (!name || !connect_Reason) {
             return res.status(400).json({ message: 'Name and connect reason are required!' });
         }
 
-        // Ensure connect_Reason is valid
         if (!VALID_QUERY_TYPES.includes(connect_Reason)) {
             return res.status(400).json({
-                message: `Invalid connect reason. Allowed values: ${VALID_QUERY_TYPES.join(", ")}`
+                message: `Invalid connect reason. Allowed values: ${VALID_QUERY_TYPES.join(", ")}`,
             });
         }
 
@@ -24,12 +22,17 @@ const customerConnect = async (req, res, next) => {
         await newCustomer.save();
 
         // Add customer to the Redis queue (organized by query type)
-        // await redis.lpush(`customerQueue:${connect_Reason}`, JSON.stringify({
-        await redis.lpush(`customerQueue`, JSON.stringify({
+        await redis.lpush(`customerQueue:${connect_Reason}`, JSON.stringify({
             id: newCustomer._id,
             name,
             connect_Reason
         }));
+
+        // 🔹 Publish an event to notify the worker that a customer has joined
+        const message = JSON.stringify({ queryType: connect_Reason }); // Fix here
+        console.log("📤 Publishing message to Redis:", message);
+        await redis.publish("queueUpdate", message);
+
 
         res.status(201).json({
             message: 'Customer connected successfully and added to queue!',
