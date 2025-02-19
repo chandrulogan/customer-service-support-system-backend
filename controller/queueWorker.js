@@ -1,38 +1,47 @@
 const redis = require('../redisClient'); // Import Redis client
+const { getSocketInstance } = require("../socket"); // Import socket instance
 
-// Function to process a specific queue
 const processQueue = async (queueType) => {
     try {
         const agentQueue = `agentQueue:${queueType}`;
         const customerQueue = `customerQueue:${queueType}`;
 
-        const agentCount = await redis.llen(agentQueue);
-        const customerCount = await redis.llen(customerQueue);
+        while (true) {
+            // Recalculate the queue size inside the loop
+            const agentCount = await redis.llen(agentQueue);
+            const customerCount = await redis.llen(customerQueue);
 
-        console.log(`${queueType} Queue Status - Agents: ${agentCount}, Customers: ${customerCount}`);
+            console.log(`${queueType} Queue Status - Agents: ${agentCount}, Customers: ${customerCount}`);
 
-        while (agentCount > 0 && customerCount > 0) {
+            // Stop if either queue is empty
+            if (agentCount === 0 || customerCount === 0) {
+                console.warn(`⚠️ ${queueType} Queue processing stopped - No available agents or customers.`);
+                break;
+            }
+
             const agentData = await redis.rpop(agentQueue);
             const customerData = await redis.rpop(customerQueue);
 
-            // 🔴 Check for null before parsing
             if (!agentData || !customerData) {
-                if (!agentData) return console.error(`⚠️ ${queueType} Agent queue is empty.`);
-                return console.error(`⚠️ ${queueType} Customer queue is empty.`)
-                // ❌ Do not continue processing if data is missing
+                console.warn(`⚠️ ${queueType} Skipping due to missing data (agent or customer queue is empty).`);
+                break;
             }
 
-            // ✅ Now it's safe to parse
             const agent = JSON.parse(agentData);
             const customer = JSON.parse(customerData);
 
             console.log(`✅ ${queueType} Assigned Agent ${agent.name} (ID: ${agent.agentId}) to Customer ${customer.name} (ID: ${customer.id})`);
 
-            // Save assignment in MongoDB (if needed)
-            // Notify via WebSockets, etc.
-        }
+            // 🔹 Create a unique room ID
+            const roomId = `chat:${agent.agentId}-${customer.id}`;
 
-        
+            // 🔹 Emit WebSocket event to both agent and customer
+            const io = getSocketInstance();
+            io.to(agent.agentId).emit("chat_assigned", { roomId, agent, customer });
+            io.to(customer.id).emit("chat_assigned", { roomId, agent, customer });
+
+            console.log(`📢 Notified agent ${agent.agentId} and customer ${customer.id} to join room ${roomId}`);
+        }
     } catch (error) {
         console.error(`❌ Error processing queue update:`, error);
     }

@@ -3,7 +3,7 @@ const { createServer } = require('node:http');
 const { Server } = require('socket.io');
 const { body, validationResult } = require('express-validator');
 const connectDatabase = require('./database/db');
-const { initializeSocket } = require("./socket");
+const { initializeSocket, getSocketInstance } = require("./socket");
 const redis = require('./redisClient'); // Import the Redis client
 
 // schema import
@@ -21,9 +21,8 @@ const app = express();
 const server = createServer(app);
 initializeSocket(server);
 
-const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] }
-});
+const io = getSocketInstance(); // ✅ Get the existing socket.io instance
+
 const port = 1997;
 
 
@@ -134,32 +133,51 @@ processQueue();
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
+    // ✅ Join room
     socket.on('join-room', ({ customerId, agentId }) => {
-        const roomId = `${customerId}-${agentId}`;
+        const roomId = `chat:${customerId}-${agentId}`;
         socket.join(roomId);
         console.log(`User joined room: ${roomId}`);
+
+        // Send success acknowledgment
+        socket.emit("join-room-success", {
+            roomId,
+            message: "User joined room successfully"
+        });
     });
 
+    // ✅ Send message
     socket.on('send-message', async ({ customerId, agentId, senderId, message }) => {
         try {
             const newMessage = new Chat({ customer: customerId, agent: agentId, sender: senderId, message });
             await newMessage.save();
-            const roomId = `${customerId}-${agentId}`;
+
+            const roomId = `chat:${customerId}-${agentId}`;
             io.to(roomId).emit('receive-message', { senderId, message, timestamp: newMessage.timestamp });
+
+            // Confirm message sent
+            socket.emit("message-sent", { success: true, message: "Message delivered successfully" });
         } catch (error) {
             console.error('Message sending error:', error);
+            socket.emit("message-error", { success: false, error: "Failed to send message" });
         }
     });
 
+    // ✅ Get chat history
     socket.on('get-messages', async ({ customerId, agentId }) => {
         try {
             const messages = await Chat.find({ customer: customerId, agent: agentId }).sort({ timestamp: 1 });
             socket.emit('chat-history', messages);
+
+            // Send acknowledgment
+            socket.emit("chat-history-received", { success: true, count: messages.length });
         } catch (error) {
             console.error('Error fetching chat history:', error);
+            socket.emit("chat-history-error", { success: false, error: "Failed to retrieve chat history" });
         }
     });
 
+    // ✅ Handle disconnect
     socket.on('disconnect', () => console.log('User disconnected:', socket.id));
 });
 
