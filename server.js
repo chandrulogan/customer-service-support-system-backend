@@ -136,6 +136,7 @@ io.on('connection', (socket) => {
     // ✅ Join room
     socket.on('join-room', ({ customerId, agentId }) => {
         const roomId = `chat:${customerId}-${agentId}`;
+        console.log("roomId", roomId);        
         socket.join(roomId);
         console.log(`User joined room: ${roomId}`);
 
@@ -149,11 +150,8 @@ io.on('connection', (socket) => {
     // ✅ Send message
     socket.on('send-message', async ({ customerId, agentId, senderId, message }) => {
         try {
-            const newMessage = new Chat({ customer: customerId, agent: agentId, sender: senderId, message });
-            await newMessage.save();
-
             const roomId = `chat:${customerId}-${agentId}`;
-            io.to(roomId).emit('receive-message', { senderId, message, timestamp: newMessage.timestamp });
+            io.to(roomId).emit('receive-message', { senderId, message, timestamp: "time" });
 
             // Confirm message sent
             socket.emit("message-sent", { success: true, message: "Message delivered successfully" });
@@ -166,11 +164,9 @@ io.on('connection', (socket) => {
     // ✅ Get chat history
     socket.on('get-messages', async ({ customerId, agentId }) => {
         try {
-            const messages = await Chat.find({ customer: customerId, agent: agentId }).sort({ timestamp: 1 });
-            socket.emit('chat-history', messages);
 
             // Send acknowledgment
-            socket.emit("chat-history-received", { success: true, count: messages.length });
+            socket.emit("chat-history-received", { success: true });
         } catch (error) {
             console.error('Error fetching chat history:', error);
             socket.emit("chat-history-error", { success: false, error: "Failed to retrieve chat history" });

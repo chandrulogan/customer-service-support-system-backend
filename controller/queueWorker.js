@@ -33,7 +33,7 @@ const processQueue = async (queueType) => {
             console.log(`✅ ${queueType} Assigned Agent ${agent.name} (ID: ${agent.agentId}) to Customer ${customer.name} (ID: ${customer.id})`);
 
             // 🔹 Create a unique room ID
-            const roomId = `chat:${agent.agentId}-${customer.id}`;
+            const roomId = `${customer.id}`;
 
             // 🔹 Emit WebSocket event to both agent and customer
             const io = getSocketInstance();
