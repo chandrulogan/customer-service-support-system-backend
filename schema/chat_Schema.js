@@ -3,12 +3,17 @@ const mongoose = require('mongoose');
 const chatSchema = new mongoose.Schema({
     chatId: {
         type: String,
-        required: true, // Ensure chatId is always provided
-        unique: true,
-        index: true // Indexed for faster queries
+        required: true,
+        index: true // ✅ Indexed for faster queries
     },
     from: {
-        type: mongoose.Schema.Types.ObjectId, // Sender (Customer/Agent)
+        type: String,
+        refPath: 'fromModel', // ✅ Dynamic reference (Customer or Employee)
+        required: true
+    },
+    fromModel: {
+        type: String,
+        enum: ['Customer', 'Employee'], // ✅ Stores whether the sender is a customer or an agent
         required: true
     },
     message: {
@@ -17,27 +22,17 @@ const chatSchema = new mongoose.Schema({
     },
     timestamp: {
         type: Date,
-        default: Date.now
+        default: Date.now,
+        index: true // ✅ Fast retrieval for chat history
     },
     queryType: {
         type: String,
-        enum: ["Billing", "Technical Support", "General Inquiry"], // Predefined query types
-        required: true,
-        index: true
-    },
-    customer: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Customer',
-        required: true
-    },
-    agent: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Employee',
+        enum: ["Billing", "Technical Support", "General Inquiry"],
         required: true
     }
 });
 
-// ✅ Ensure efficient querying by indexing chatId & queryType
-chatSchema.index({ chatId: 1, queryType: 1, timestamp: -1 });
+// ✅ Index chatId for faster retrieval and sorting by timestamp
+chatSchema.index({ chatId: 1, timestamp: -1 });
 
 module.exports = mongoose.model('Chat', chatSchema);

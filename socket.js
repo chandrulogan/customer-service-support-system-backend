@@ -1,27 +1,62 @@
+// const { Server } = require("socket.io");
+
+// let io = null;
+
+// function initializeSocket(server) {
+//     io = new Server(server, {
+//         cors: { origin: "*" }, // Allow all origins (for testing)
+//     });
+
+//     io.on("connection", (socket) => {
+//         console.log("A client connected:", socket.id);
+
+//         socket.on("disconnect", () => {
+//             console.log("A client disconnected:", socket.id);
+//         });
+//     });
+// }
+
+// function getSocketInstance() {
+//     if (!io) {
+//         throw new Error("Socket.io is not initialized!");
+//     }
+//     return io;
+// }
+
+// // ✅ Export correctly
+// module.exports = { initializeSocket, getSocketInstance };
+
 const { Server } = require("socket.io");
 
-let io = null;
+let io;
 
-function initializeSocket(server) {
+const initializeSocket = (server) => {
     io = new Server(server, {
-        cors: { origin: "*" }, // Allow all origins (for testing)
+        cors: {
+            origin: "*", // Update with allowed origins
+            methods: ["GET", "POST"]
+        }
     });
 
     io.on("connection", (socket) => {
-        console.log("A client connected:", socket.id);
+        console.log(`🔗 User connected: ${socket.id}`);
+
+        socket.on('join-room', ({ roomId, userInfo }) => {
+            const { name, id } = userInfo;
+            socket.join(roomId);
+            console.log(`${name || 'unknown'} - ${id} - joined room: ${roomId}`);
+            socket.emit("join-room-success", { roomId, message: "User joined room successfully" });
+        });
 
         socket.on("disconnect", () => {
-            console.log("A client disconnected:", socket.id);
+            console.log(`❌ User disconnected: ${socket.id}`);
         });
     });
-}
 
-function getSocketInstance() {
-    if (!io) {
-        throw new Error("Socket.io is not initialized!");
-    }
+    console.log("✅ WebSocket initialized");
     return io;
-}
+};
 
-// ✅ Export correctly
+const getSocketInstance = () => io;
+
 module.exports = { initializeSocket, getSocketInstance };

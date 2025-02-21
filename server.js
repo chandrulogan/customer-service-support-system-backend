@@ -1,6 +1,6 @@
 const express = require('express');
 const { createServer } = require('node:http');
-const { Server } = require('socket.io');
+const mongoose = require('mongoose');
 const { body, validationResult } = require('express-validator');
 const connectDatabase = require('./database/db');
 const { initializeSocket, getSocketInstance } = require("./socket");
@@ -16,6 +16,7 @@ const Chat = require('./schema/chat_Schema');
 const { customerConnect } = require('./controller/customerController');
 const { agentLogin } = require('./controller/agentLogin');
 const processQueue = require('./controller/queueWorker');
+const chatRoutes = require('./controller/chatRoutes');
 
 const app = express();
 const server = createServer(app);
@@ -47,6 +48,8 @@ app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({ message: 'Internal Server Error', error: err.message });
 });
+// ✅ Use chat API routes
+app.use('/chat', chatRoutes);
 
 app.post('/organisation-signup', [
     body('name').notEmpty().withMessage('Name is required'),
@@ -129,52 +132,5 @@ app.post('/create-queue', async (req, res, next) => {
 
 console.log("🔄 Starting processQueue...");
 processQueue();
-
-io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
-
-    // ✅ Join room
-    socket.on('join-room', ({ customerId, agentId }) => {
-        const roomId = `chat:${customerId}-${agentId}`;
-        console.log("roomId", roomId);        
-        socket.join(roomId);
-        console.log(`User joined room: ${roomId}`);
-
-        // Send success acknowledgment
-        socket.emit("join-room-success", {
-            roomId,
-            message: "User joined room successfully"
-        });
-    });
-
-    // ✅ Send message
-    socket.on('send-message', async ({ customerId, agentId, senderId, message }) => {
-        try {
-            const roomId = `chat:${customerId}-${agentId}`;
-            io.to(roomId).emit('receive-message', { senderId, message, timestamp: "time" });
-
-            // Confirm message sent
-            socket.emit("message-sent", { success: true, message: "Message delivered successfully" });
-        } catch (error) {
-            console.error('Message sending error:', error);
-            socket.emit("message-error", { success: false, error: "Failed to send message" });
-        }
-    });
-
-    // ✅ Get chat history
-    socket.on('get-messages', async ({ customerId, agentId }) => {
-        try {
-
-            // Send acknowledgment
-            socket.emit("chat-history-received", { success: true });
-        } catch (error) {
-            console.error('Error fetching chat history:', error);
-            socket.emit("chat-history-error", { success: false, error: "Failed to retrieve chat history" });
-        }
-    });
-
-    // ✅ Handle disconnect
-    socket.on('disconnect', () => console.log('User disconnected:', socket.id));
-});
 
 server.listen(port, () => console.log(`Server is running on http://localhost:${port}`));
