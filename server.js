@@ -1,6 +1,6 @@
 const express = require('express');
 const { createServer } = require('node:http');
-const mongoose = require('mongoose');
+var cors = require('cors')
 const { body, validationResult } = require('express-validator');
 const connectDatabase = require('./database/db');
 const { initializeSocket, getSocketInstance } = require("./socket");
@@ -17,8 +17,12 @@ const { customerConnect } = require('./controller/customerController');
 const { agentLogin } = require('./controller/agentLogin');
 const processQueue = require('./controller/queueWorker');
 const chatRoutes = require('./controller/chatRoutes');
+const organisationRoutes = require('./routes/organisationRoutes');
 
 const app = express();
+app.use(cors({
+    origin: "*"
+}))
 const server = createServer(app);
 initializeSocket(server);
 
@@ -51,84 +55,10 @@ app.use((err, req, res, next) => {
 // ✅ Use chat API routes
 app.use('/chat', chatRoutes);
 
-app.post('/organisation-signup', [
-    body('name').notEmpty().withMessage('Name is required'),
-    body('email').isEmail().withMessage('Valid email is required'),
-    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
-], async (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-
-    try {
-        const { name, email, password } = req.body;
-        if (await Organisation.findOne({ email })) {
-            return res.status(400).json({ message: 'Email is already registered!' });
-        }
-        const newOrganisation = new Organisation({ name, email, password });
-        await newOrganisation.save();
-        res.status(201).json({ message: 'Organisation registered successfully!', organisation: { id: newOrganisation._id, name } });
-    } catch (error) { next(error); }
-});
-
-app.post('/add-agent', async (req, res, next) => {
-    try {
-        const { name, organisation } = req.body;
-        if (!name || !organisation) {
-            return res.status(400).json({ message: 'Name and organisation are required!' });
-        }
-        const newEmployee = new Employees({ name, organisation });
-        await newEmployee.save();
-        res.status(201).json({ message: 'Agent added successfully!', agent: { id: newEmployee._id, name } });
-    } catch (error) {
-        next(error);
-    }
-});
+app.use('/organisation', organisationRoutes);
 
 app.post('/customer-connect', customerConnect);
 app.post('/agent-login', agentLogin);
-
-app.post('/real-time/add-to-queue', async (req, res, next) => {
-    try {
-        const { customerId, issue } = req.body;
-        if (!customerId || !issue) return res.status(400).json({ message: 'Customer ID and issue are required!' });
-        await redis.lpush('customerQueue', JSON.stringify({ customerId, issue }));
-        io.emit('customer-queue', { message: 'New customer added to queue.', customerId, issue });
-        res.status(201).json({ message: 'Customer added to queue successfully!' });
-    } catch (error) { next(error); }
-});
-
-app.get('/queue-status', async (req, res, next) => {
-    try {
-        const queue = await redis.lrange('customerQueue', 0, -1);
-        res.status(200).json(queue.map(item => JSON.parse(item)));
-    } catch (error) { next(error); }
-});
-
-app.post('/assign-agent', async (req, res, next) => {
-    try {
-        const { agentId } = req.body;
-        if (!agentId) return res.status(400).json({ message: 'Agent ID is required!' });
-        const nextCustomer = await redis.rpop('customerQueue');
-        if (!nextCustomer) return res.status(404).json({ message: 'No customers in the queue.' });
-        res.status(200).json({ message: 'Agent assigned successfully!', queueItem: JSON.parse(nextCustomer) });
-    } catch (error) { next(error); }
-});
-
-app.post('/resolve-customer', async (req, res, next) => {
-    try {
-        const { queueId } = req.body;
-        if (!queueId) return res.status(400).json({ message: 'Queue ID is required!' });
-        res.status(200).json({ message: 'Customer issue resolved successfully!' });
-    } catch (error) { next(error); }
-});
-
-app.post('/create-queue', async (req, res, next) => {
-    try {
-        const { queueId } = req.body;
-        if (!queueId) return res.status(400).json({ message: 'Queue ID is required!' });
-        res.status(200).json({ message: 'Customer issue resolved successfully!' });
-    } catch (error) { next(error); }
-})
 
 console.log("🔄 Starting processQueue...");
 processQueue();

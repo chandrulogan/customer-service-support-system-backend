@@ -5,10 +5,13 @@ const OrganisationSchema = new mongoose.Schema({
     name: {
         type: String,
         required: true,
+        lowercase: true, // Ensures email is always stored in lowercase
+        unique: true,
     },
     email: {
         type: String,
         required: true,
+        lowercase: true, // Ensures email is always stored in lowercase
         // unique: true,
     },
     password: {
