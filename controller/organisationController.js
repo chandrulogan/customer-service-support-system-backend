@@ -52,24 +52,26 @@ exports.addNewEmployee = async (req, res, next) => {
             return res.status(400).json({ message: 'Name and organisation are required!' });
         }
 
-        // Check if the organisation exists
-        const orgExists = await Organisation.findById(organisation);
-        if (!orgExists) {
+        // Find the organisation by name first
+        const org = await Organisation.findOne({ name: organisation });
+
+        if (!org) {
             return res.status(400).json({ message: 'Invalid organisation!' });
         }
 
-        // Create new employee
-        const newEmployee = new Employees({ name, organisation });
+        // Create new employee with the organisation's ObjectId
+        const newEmployee = new Employees({ name, organisation: org._id });
         await newEmployee.save();
 
         res.status(201).json({
             message: 'Employee added successfully!',
-            employee: { id: newEmployee._id, name }
+            employee: { id: newEmployee._id, name, organisation: org.name }
         });
     } catch (error) {
         next(error);
     }
 };
+
 
 // Employee Login
 exports.employeeLogin = async (req, res, next) => {
