@@ -1,15 +1,11 @@
 const express = require('express');
 const { createServer } = require('node:http');
+require('dotenv').config()
 var cors = require('cors')
-const { body, validationResult } = require('express-validator');
 const connectDatabase = require('./database/db');
 const { initializeSocket, getSocketInstance } = require("./socket");
-const redis = require('./redisClient'); // Import the Redis client
 
 // schema import
-const Organisation = require('./schema/organisation_Schema');
-const Employees = require('./schema/employee_Schema');
-const Queue = require('./schema/queue_Schema');
 const Chat = require('./schema/chat_Schema');
 
 // controllers import
