@@ -1,6 +1,6 @@
 const express = require('express');
 const { body } = require('express-validator');
-const { organisationSignup, addNewEmployee, verifyToken, organisationLogin } = require('../controller/organisationController');
+const { organisationSignup, addNewEmployee, verifyToken, organisationLogin, getEmployeeList } = require('../controller/organisationController');
 
 const router = express.Router();
 
@@ -19,5 +19,6 @@ router.post('/login', [
 
 // Add employee (Protected Route)
 router.post('/add-employee', verifyToken, addNewEmployee);
+router.get('/employee-list', verifyToken, getEmployeeList);
 
 module.exports = router;

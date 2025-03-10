@@ -10,6 +10,11 @@ const employeeSchema = new mongoose.Schema({
         required: true,
         unique: false, // Remove uniqueness
     },
+    number: {
+        type: Number,
+        required: true,
+        unique: false, // Remove uniqueness
+    },
     organisation: {
         type: String,
         required: true,
@@ -21,6 +26,11 @@ const employeeSchema = new mongoose.Schema({
     location: {
         type: String,
         default: "mexico", // Default if location is not provided
+        required: true
+    },
+    status: {
+        type: String,
+        default: true, 
         required: true
     },
     queryTypes: {

@@ -28,9 +28,12 @@ exports.organisationSignup = async (req, res, next) => {
         // Create new organisation
         const newOrganisation = new Organisation({ name, email, password: hashedPassword });
         await newOrganisation.save();
+        
 
         // Generate JWT Token
-        const token = jwt.sign({ id: newOrganisation._id, email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        const token = jwt.sign({ id: newOrganisation._id, email }, process.env.JWT_SECRET, {
+            expiresIn: '24h'
+        });
 
         res.status(201).json({
             message: 'Organisation registered successfully!',
@@ -45,11 +48,11 @@ exports.organisationSignup = async (req, res, next) => {
 // Add New Employee (Protected Route)
 exports.addNewEmployee = async (req, res, next) => {
     try {
-        const { name, organisation } = req.body;
+        const { number, name, organisation } = req.body;
 
         // Validate input
-        if (!name || !organisation) {
-            return res.status(400).json({ message: 'Name and organisation are required!' });
+        if (!name || !organisation || !number) {
+            return res.status(400).json({ message: 'Name, organisation, number are required!' });
         }
 
         // Find the organisation by name first
@@ -59,19 +62,46 @@ exports.addNewEmployee = async (req, res, next) => {
             return res.status(400).json({ message: 'Invalid organisation!' });
         }
 
-        // Create new employee with the organisation's ObjectId
-        const newEmployee = new Employees({ name, organisation: org._id });
-        await newEmployee.save();
+        const isEmployeeAlreadyRegistered = await Employees.findOne({ number });
+        
+        if (isEmployeeAlreadyRegistered) {
+            return res.status(400).json({
+                message: 'Employee number is already registered',
+            });
+        }
 
+        // Create new employee with the organisation's ObjectId
+        const newEmployee = new Employees({ name, organisation, number });
+        
+        await newEmployee.save();
+        
         res.status(201).json({
             message: 'Employee added successfully!',
-            employee: { id: newEmployee._id, name, organisation: org.name }
+            employee: { id: newEmployee._id, name, organisation: org.name, number: newEmployee.number }
         });
+
     } catch (error) {
-        next(error);
+        res.status(500).json({
+            message: { error },
+        });
     }
 };
 
+// get employee list
+exports.getEmployeeList = async (req, res, next) => {
+    try {
+        const employeesList = await Employees.find();
+
+        res.status(201).json({
+            message: 'Employee data received',
+            result: employeesList
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: { error },
+        });
+    }
+}
 
 // Employee Login
 exports.employeeLogin = async (req, res, next) => {
@@ -98,7 +128,7 @@ exports.employeeLogin = async (req, res, next) => {
         }
 
         // Generate JWT Token
-        const token = jwt.sign({ id: employee._id, name }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        const token = jwt.sign({ id: employee._id, name }, process.env.JWT_SECRET, { expiresIn: '24h' });
 
         res.status(200).json({
             message: 'Login successful!',
@@ -112,18 +142,27 @@ exports.employeeLogin = async (req, res, next) => {
 
 // Middleware to verify JWT
 exports.verifyToken = (req, res, next) => {
-    const token = req.header('Authorization');
+    // console.log("Headers:", req.headers);  // Check if Authorization header exists
+
+    const token = req.header('Authorization')?.split(' ')[1];  // Remove "Bearer " prefix
+    console.log("Extracted Token:", token);
 
     if (!token) return res.status(401).json({ message: 'Access Denied. No token provided.' });
 
     try {
-        const decoded = jwt.verify(token.replace('Bearer ', ''), process.env.JWT_SECRET);
+        console.log("process.env.JWT_SECRET", process.env.JWT_SECRET);
+        
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        console.log("Decoded Token Data:", decoded);
+
         req.user = decoded;
         next();
     } catch (error) {
+        console.error("JWT Verification Error:", error);
         res.status(400).json({ message: 'Invalid Token' });
     }
 };
+
 
 exports.organisationLogin = async (req, res, next) => {
     const { email, password } = req.body;
