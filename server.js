@@ -14,6 +14,7 @@ const { agentLogin } = require('./controller/agentLogin');
 const processQueue = require('./controller/queueWorker');
 const chatRoutes = require('./controller/chatRoutes');
 const organisationRoutes = require('./routes/organisationRoutes');
+const apiRoutes = require('./routes')
 
 const app = express();
 app.use(cors({
@@ -49,6 +50,7 @@ app.use((err, req, res, next) => {
     res.status(500).json({ message: 'Internal Server Error', error: err.message });
 });
 // ✅ Use chat API routes
+app.use('/', apiRoutes)
 app.use('/chat', chatRoutes);
 
 app.use('/organisation', organisationRoutes);
