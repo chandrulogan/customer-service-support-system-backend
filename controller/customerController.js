@@ -1,14 +1,16 @@
 const Customer = require('../schema/customers_Schema');
 const jwt = require('jsonwebtoken');
-const redis = require('../redisClient'); // Import Redis client
 const { v4: uuidv4 } = require('uuid'); // Import UUID for unique IDs
 const bcrypt = require('bcryptjs');
+const redis = require('../redisClient'); // Import Redis client
 
 const VALID_QUERY_TYPES = ["Billing", "Technical Support", "General Inquiry"]; // Allowed types
 
 const customerConnect = async (req, res, next) => {
     try {
         const { name, connect_Reason, mobileNumber } = req.body;
+        console.log("req", req.header);
+        
 
         if (!name || !connect_Reason) {
             return res.status(400).json({ message: 'Name and connect reason are required!' });
@@ -20,15 +22,8 @@ const customerConnect = async (req, res, next) => {
             });
         }
 
-        // 🔹 Check if customer already exists
-        let existingCustomer = await Customer.findOne({ mobileNumber });
-
         // 🔹 Generate a new unique ID
         let uniqueID = uuidv4();
-
-        // Save new customer to database
-        const newCustomer = new Customer({ _id: uniqueID, name, connect_Reason, mobileNumber });
-        await newCustomer.save();
         console.log(`✅ New customer created: ${uniqueID}`);
 
         // 🔹 Add customer to the Redis queue
