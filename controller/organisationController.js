@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 // schema
 const Organisation = require('../schema/organisation_Schema');
 const Employees = require('../schema/employee_Schema');
+const employeeCurrentQueue = require('../schema/employeeQueueType_Schema')
 
 // Organisation Signup
 exports.organisationSignup = async (req, res, next) => {
@@ -28,7 +29,7 @@ exports.organisationSignup = async (req, res, next) => {
         // Create new organisation
         const newOrganisation = new Organisation({ name, email, password: hashedPassword });
         await newOrganisation.save();
-        
+
 
         // Generate JWT Token
         const token = jwt.sign({ id: newOrganisation._id, email }, process.env.JWT_SECRET, {
@@ -37,7 +38,7 @@ exports.organisationSignup = async (req, res, next) => {
 
         res.status(201).json({
             message: 'Organisation registered successfully!',
-            organisation: { id: newOrganisation._id, name, email },
+            result: newOrganisation,
             token
         });
     } catch (error) {
@@ -63,7 +64,7 @@ exports.addNewEmployee = async (req, res, next) => {
         }
 
         const isEmployeeAlreadyRegistered = await Employees.findOne({ number });
-        
+
         if (isEmployeeAlreadyRegistered) {
             return res.status(400).json({
                 message: 'Employee number is already registered',
@@ -72,12 +73,12 @@ exports.addNewEmployee = async (req, res, next) => {
 
         // Create new employee with the organisation's ObjectId
         const newEmployee = new Employees({ name, organisation, number });
-        
+
         await newEmployee.save();
-        
+
         res.status(201).json({
             message: 'Employee added successfully!',
-            employee: { id: newEmployee._id, name, organisation: org.name, number: newEmployee.number }
+            result: newEmployee
         });
 
     } catch (error) {
@@ -86,22 +87,6 @@ exports.addNewEmployee = async (req, res, next) => {
         });
     }
 };
-
-// get employee list
-exports.getEmployeeList = async (req, res, next) => {
-    try {
-        const employeesList = await Employees.find();
-
-        res.status(201).json({
-            message: 'Employee data received',
-            result: employeesList
-        });
-    } catch (error) {
-        res.status(500).json({
-            message: { error },
-        });
-    }
-}
 
 // Employee Login
 exports.employeeLogin = async (req, res, next) => {
@@ -132,7 +117,7 @@ exports.employeeLogin = async (req, res, next) => {
 
         res.status(200).json({
             message: 'Login successful!',
-            employee: { id: employee._id, name },
+            result: employee,
             token
         });
     } catch (error) {
@@ -151,7 +136,7 @@ exports.verifyToken = (req, res, next) => {
 
     try {
         console.log("process.env.JWT_SECRET", process.env.JWT_SECRET);
-        
+
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         console.log("Decoded Token Data:", decoded);
 
@@ -194,7 +179,7 @@ exports.organisationLogin = async (req, res, next) => {
         res.status(200).json({
             message: "Login successful!",
             token,
-            organisation: {
+            result: {
                 id: organisation._id,
                 name: organisation.name,
                 email: organisation.email
@@ -205,3 +190,48 @@ exports.organisationLogin = async (req, res, next) => {
         next(error);
     }
 };
+
+// get employee list
+exports.getEmployeeList = async (req, res, next) => {
+    const { agentId, queue } = req.body
+    try {
+        const isEmployeeThere = await Employees.findOne(agentId);
+
+        res.status(201).json({
+            message: 'Employee data received',
+            result: employeesList
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: { error },
+        });
+    }
+}
+
+exports.assignEmployeeQueue = async (req, res, next) => {
+    try {
+        const { agentId, queue } = req.body
+
+        const isEmployeeeAlreadyInTheQueue = await employeeCurrentQueue.find({ agentId })
+
+        if (isEmployeeeAlreadyInTheQueue) {
+            await employeeCurrentQueue.findOneAndUpdate({ agentId, queue })
+
+            res.status(201).json({
+                message: 'Employee is updated in the Queue!',
+            });
+        }
+
+        const employeesList = new employeeCurrentQueue({ agentId, queue });
+        await employeesList.save()
+
+        res.status(201).json({
+            message: 'Employee is assigned in the Queue!',
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: { error },
+        });
+    }
+}

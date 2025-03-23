@@ -8,7 +8,7 @@ const VALID_QUERY_TYPES = ["Billing", "Technical Support", "General Inquiry"]; /
 
 const customerConnect = async (req, res, next) => {
     try {
-        const { name, connect_Reason, mobileNumber } = req.body;
+        const { name, connect_Reason, mobileNumber, uniqueID } = req.body;
         console.log("req", req.header);
         
 
@@ -22,9 +22,9 @@ const customerConnect = async (req, res, next) => {
             });
         }
 
-        // 🔹 Generate a new unique ID
-        let uniqueID = uuidv4();
-        console.log(`✅ New customer created: ${uniqueID}`);
+        // // 🔹 Generate a new unique ID
+        // let uniqueID = uuidv4();
+        // console.log(`✅ New customer created: ${uniqueID}`);
 
         // 🔹 Add customer to the Redis queue
         const customerData = JSON.stringify({ id: uniqueID, name, connect_Reason, mobileNumber });
@@ -79,8 +79,8 @@ const customerSignup = async (req, res, next) => {
 
         return res.status(201).json({
             message: 'Customer registered successfully!',
-            result: { id: newCustomer._id, name, mobileNumber },
-            token
+            token,
+            result: existingCustomer,
         });
 
     } catch (error) {
@@ -124,7 +124,8 @@ const customerSignIn = async (req, res) => {
 
         return res.status(200).json({
             message: "User verified!",
-            token
+            token,
+            result: existingCustomer
         });
 
     } catch (error) {
