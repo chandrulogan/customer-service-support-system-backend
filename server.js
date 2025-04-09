@@ -28,6 +28,7 @@ connectDatabase();
 // Initialize WebSocket Server
 const io = initializeSocket(server);
 
+// socket connection
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
@@ -67,6 +68,7 @@ io.on("connection", (socket) => {
             socket.broadcast.to(roomId).emit("receive-message", {
                 userId,
                 message: messages,
+                fromModel: userType,
                 timestamp: new Date(),
             });
 
@@ -95,7 +97,7 @@ app.use((err, req, res, next) => {
     res.status(500).json({ message: 'Internal Server Error', error: err.message });
 });
 
-console.log("🔄 Starting processQueue...");
+// console.log("🔄 Starting processQueue...");
 processQueue();
 
 const port = process.env.PORT || 1997;

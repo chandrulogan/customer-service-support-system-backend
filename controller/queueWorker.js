@@ -30,15 +30,15 @@ const processQueue = async (queueType) => {
             const agent = JSON.parse(agentData);
             const customer = JSON.parse(customerData);
 
-            console.log(`✅ ${queueType} Assigned Agent ${agent.name} (ID: ${agent.agentId}) to Customer ${customer.name} (ID: ${customer.id})`);
+            console.log(`✅ ${queueType} Assigned Agent ${agent?.name} (ID: ${agent?.agentId}) to Customer ${customer?.name} (ID: ${customer?.id})`);
 
             // 🔹 Create a unique room ID
             const roomId = `${customer.id}`;
 
             // 🔹 Emit WebSocket event to both agent and customer
             const io = getSocketInstance();
-            io.to(agent.agentId).emit("chat_assigned", { roomId, agent, customer });
-            io.to(customer.id).emit("chat_assigned", { roomId, agent, customer });
+            io.to(agent.agentId).emit("notifyAgent", { roomId, agent, customer });
+            io.to(customer.id).emit("notifyCustomer", { roomId, agent, customer });
 
             console.log(`📢 Notified agent ${agent.agentId} and customer ${customer.id} to join room ${roomId}`);
         }

@@ -43,11 +43,11 @@ const addAgentToQueue = async (req, res, next) => {
     const { agentId, queryType, tenentId } = req.body;
 
     // // Find agent in DB
-    // const agent = await Employee.findOne({ agentId });
+    const agent = await Employee.findOne({ agentId });
 
-    // if (!agent) {
-    //     return res.status(404).json({ message: 'Unable to find the user!. Try Again!' });
-    // }
+    if (!agent) {
+        return res.status(404).json({ message: 'Unable to find the user!. Try Again!' });
+    }
 
     // Validate queryType
     if (!VALID_QUERY_TYPES.includes(queryType)) {
