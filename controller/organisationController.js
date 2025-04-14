@@ -174,7 +174,7 @@ exports.organisationLogin = async (req, res, next) => {
         }
 
         // 3) Generate JWT Token
-        const token = jwt.sign({ id: organisation._id, email: organisation.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        const token = jwt.sign({ ...organisation }, process.env.JWT_SECRET, { expiresIn: '24h' });
 
         res.status(200).json({
             message: "Login successful!",
@@ -193,17 +193,16 @@ exports.organisationLogin = async (req, res, next) => {
 
 // get employee list
 exports.getEmployeeList = async (req, res, next) => {
-    const { agentId, queue } = req.body
+    const { name } = req?.user?._doc
     try {
-        const isEmployeeThere = await Employees.findOne(agentId);
-
+        const employeeList = await Employees.find({ organisation: name });
         res.status(201).json({
             message: 'Employee data received',
-            result: employeesList
+            result: employeeList
         });
     } catch (error) {
         res.status(500).json({
-            message: { error },
+            message: error,
         });
     }
 }
