@@ -69,4 +69,51 @@ const addAgentToQueue = async (req, res, next) => {
     });
 }
 
-module.exports = { agentLogin, addAgentToQueue };
+const removeAgentFromQueue = async (req, res, next) => {
+    const { agentId, queryType } = req.body;
+
+    try {
+        // 1. Validate agent
+        const agent = await Employee.findOne({ agentId });
+
+        if (!agent) {
+            return res.status(404).json({ message: 'Unable to find the user! Try Again!' });
+        }
+
+        // 2. Validate query type
+        if (!VALID_QUERY_TYPES.includes(queryType)) {
+            return res.status(400).json({
+                message: `Invalid query type. Allowed values: ${VALID_QUERY_TYPES.join(", ")}`,
+            });
+        }
+
+        // 3. Prepare queue name
+        const queueKey = `agentQueue:${queryType}`;
+
+        // 4. Remove agent from Redis queue using LREM
+        const agentData = JSON.stringify({ agentId, name: agent.name, queryType });
+
+        const removedCount = await redis.lrem(queueKey, 0, agentData); // 0 means remove all matching elements
+
+        if (removedCount === 0) {
+            return res.status(404).json({
+                message: 'Agent not found in queue',
+            });
+        }
+
+        // 5. Notify queue worker about update
+        const message = JSON.stringify({ queryType });
+        console.log("📤 Publishing message to Redis:", message);
+        await redis.publish("queueUpdate", message);
+
+        res.status(200).json({
+            message: `Removed agent from the ${queryType} queue`,
+        });
+    } catch (err) {
+        console.error("❌ Error in removeAgentFromQueue:", err);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+};
+
+
+module.exports = { agentLogin, addAgentToQueue, removeAgentFromQueue };

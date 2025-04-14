@@ -10,7 +10,7 @@ const Chat = require('./schema/chat_Schema');
 
 // Controllers import
 const { customerConnect } = require('./controller/customerController');
-const { agentLogin, addAgentToQueue } = require('./controller/agentLogin');
+const { agentLogin, addAgentToQueue, removeAgentFromQueue } = require('./controller/agentLogin');
 const processQueue = require('./controller/queueWorker');
 const chatRoutes = require('./controller/chatRoutes');
 const organisationRoutes = require('./routes/organisationRoutes');
@@ -44,8 +44,6 @@ io.on("connection", (socket) => {
     socket.on("sendMessage", async ({ roomId, messageData }) => {
         try {
             const { userType, userId, messages } = messageData;
-
-            console.log("messageData", messageData);
 
             // ✅ Save to MongoDB
             const chatMessage = new Chat({
@@ -90,6 +88,7 @@ app.use('/organisation', organisationRoutes);
 app.post('/customer-connect', customerConnect);
 app.post('/agent-login', agentLogin);
 app.post('/add-agent-to-queue', addAgentToQueue);
+app.post('/remove-agent-from-queue', removeAgentFromQueue);
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {

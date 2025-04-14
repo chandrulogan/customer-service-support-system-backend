@@ -8,9 +8,7 @@ const VALID_QUERY_TYPES = ["Billing", "Technical Support", "General Inquiry"]; /
 
 const customerConnect = async (req, res, next) => {
     try {
-        const { name, connect_Reason, mobileNumber, uniqueID } = req.body;
-        console.log("req", req.header);
-        
+        const { name, connect_Reason, mobileNumber, uniqueID } = req.body;        
 
         if (!name || !connect_Reason) {
             return res.status(400).json({ message: 'Name and connect reason are required!' });
