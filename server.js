@@ -3,7 +3,7 @@ const { createServer } = require('node:http');
 require('dotenv').config();
 const cors = require('cors');
 const connectDatabase = require('./database/db');
-const { initializeSocket, getSocketInstance } = require("./socket");
+const { initializeSocket } = require("./socket");
 
 // Schema import
 const Chat = require('./schema/chat_Schema');
@@ -29,9 +29,14 @@ connectDatabase();
 const io = initializeSocket(server);
 
 // socket connection
+/*
+"connection" is a built-in event in Socket.IO that is triggered every time a new client (browser, app, etc.) 
+ connects to your WebSocket server.
+*/
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
+    // creating the room and making the connection
     socket.on("joinRoom", (roomId) => {
         socket.join(roomId);
         console.log(`User ${socket.id} joined room ${roomId}`);
@@ -96,8 +101,6 @@ app.use((err, req, res, next) => {
     res.status(500).json({ message: 'Internal Server Error', error: err.message });
 });
 
-// console.log("🔄 Starting processQueue...");
-processQueue();
 
 const port = process.env.PORT || 1997;
 server.listen(port, () => console.log(`🚀 Server is running on http://localhost:${port}`));

@@ -1,7 +1,10 @@
-const Customer = require('../schema/customers_Schema');
 const jwt = require('jsonwebtoken');
-const { v4: uuidv4 } = require('uuid'); // Import UUID for unique IDs
 const bcrypt = require('bcryptjs');
+
+// schema
+const Customer = require('../schema/customers_Schema');
+
+// configs
 const redis = require('../redisClient'); // Import Redis client
 
 const VALID_QUERY_TYPES = ["Billing", "Technical Support", "General Inquiry"]; // Allowed types
@@ -19,10 +22,6 @@ const customerConnect = async (req, res, next) => {
                 message: `Invalid connect reason. Allowed values: ${VALID_QUERY_TYPES.join(", ")}`,
             });
         }
-
-        // // 🔹 Generate a new unique ID
-        // let uniqueID = uuidv4();
-        // console.log(`✅ New customer created: ${uniqueID}`);
 
         // 🔹 Add customer to the Redis queue
         const customerData = JSON.stringify({ id: uniqueID, name, connect_Reason, mobileNumber });

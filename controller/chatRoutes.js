@@ -1,8 +1,12 @@
 const express = require("express");
 const Chat = require("../schema/chat_Schema");
-const { getSocketInstance } = require("../socket");
 
 const router = express.Router();
+
+// configs
+const redis = require('../redisClient');
+const { getSocketInstance } = require("../socket");
+
 
 /**
  * 🔹 API: Join a Room
@@ -67,5 +71,17 @@ router.get("/chat-history/:roomId", async (req, res) => {
         return res.status(500).json({ success: false, error: error.message });
     }
 });
+
+/**
+ * API: Chat Rejected
+*/
+router.post("/decline", async(req, res) => {
+    const { queueType, data  } = req.body
+    console.log("req", req.body);
+
+    await redis.rpush(`customerQueue:${queueType}`, JSON.stringify(data));
+
+    return res.status(200).json({ success: true });
+})
 
 module.exports = router;
