@@ -77,7 +77,7 @@ router.get("/chat-history/:roomId", async (req, res) => {
 */
 router.post("/decline", async(req, res) => {
     const { queueType, data  } = req.body
-    console.log("req", req.body);
+    // console.log("req", req.body);
 
     await redis.rpush(`customerQueue:${queueType}`, JSON.stringify(data));
 
