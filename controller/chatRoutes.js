@@ -31,6 +31,8 @@ router.post("/send-message", async (req, res) => {
     try {
         const { roomId, messageData } = req.body;
         const { userType, userId, message } = messageData;
+        console.log("roomId, messageData", roomId, messageData);
+        
         const io = getSocketInstance();
 
         // ✅ Save to MongoDB

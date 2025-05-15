@@ -4,9 +4,10 @@ const mongoose = require('mongoose');
 const OrganisationSchema = new mongoose.Schema({
     name: {
         type: String,
-        required: true,
+        // required: true,
         lowercase: true, // Ensures email is always stored in lowercase
         unique: true,
+        default:"CS3"
     },
     email: {
         type: String,

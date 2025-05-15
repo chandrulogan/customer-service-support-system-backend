@@ -11,8 +11,9 @@ const Chat = require('./schema/chat_Schema');
 // Controllers import
 const { customerConnect } = require('./controller/customerController');
 const { agentLogin, addAgentToQueue, removeAgentFromQueue } = require('./controller/agentLogin');
-const processQueue = require('./controller/queueWorker');
 const chatRoutes = require('./controller/chatRoutes');
+
+// routes
 const organisationRoutes = require('./routes/organisationRoutes');
 const apiRoutes = require('./routes');
 
@@ -60,13 +61,6 @@ io.on("connection", (socket) => {
             });
             await chatMessage.save();
 
-            // // ✅ Emit message to room
-            // io.to(roomId).emit("receive-message", {
-            //     userId,
-            //     message: messages,
-            //     timestamp: new Date(),
-            // });
-
             // ✅ Emit message to all **EXCEPT** the sender
             socket.broadcast.to(roomId).emit("receive-message", {
                 userId,
@@ -82,8 +76,22 @@ io.on("connection", (socket) => {
         }
     });
 
+    socket.on("endChat", ({ roomId, userType }) => {
+        console.log(`Chat ended by ${userType} in room ${roomId}`);
+
+        // Optionally broadcast to the other user
+        socket.broadcast.to(roomId).emit("chatEnded", { message: "Chat has been ended." });
+        socket.leave(roomId)
+        // Save end event in DB if needed
+    });
+
     socket.on("disconnect", () => console.log("User disconnected:", socket.id));
 });
+
+
+// Worker function this will run in background
+const startQueueWorker = require('./controller/queueWorker');
+startQueueWorker()
 
 // Routes
 app.get('/', (req, res) => res.send('Hello World!'));

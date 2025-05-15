@@ -40,12 +40,18 @@ const processQueue = async (queueType) => {
             io.to(agent.agentId).emit("notifyAgent", { roomId, agent, customer });
             io.to(customer.id).emit("notifyCustomer", { roomId, agent, customer });
 
-            console.log(`📢 Notified agent ${agent.agentId} and customer ${customer.id} to join room ${roomId}`);
+            // console.log(`📢 Notified agent ${agent.agentId} and customer ${customer.id} to join room ${roomId}`);
         }
     } catch (error) {
         console.error(`❌ Error processing queue update:`, error);
     }
 };
+
+/*
+Below subscriber is listening to publisher event
+await redis.publish("queueUpdate", message);
+which is in the agentLogin file and others too
+*/
 
 // Subscribe to Redis Pub/Sub for real-time queue updates
 const subscriber = redis.duplicate(); // Create a separate Redis connection for subscription
@@ -58,8 +64,9 @@ subscriber.subscribe("queueUpdate", (err, count) => {
     }
 });
 
+// "message" is a redis inbuild event
 subscriber.on("message", (channel, message) => {
-    console.log(`📢 Queue update received on "${channel}":`, message);
+    // console.log(`📢 Queue update received on "${channel}":`, message);
 
     if (!message) {
         console.error("❌ Received null or empty message!");
@@ -68,13 +75,13 @@ subscriber.on("message", (channel, message) => {
 
     try {
         const data = JSON.parse(message);
-        console.log("🔄 Processing queue item:", data);
+        // console.log("🔄 Processing queue item:", data);
         processQueue(data?.queryType)
     } catch (error) {
         console.error("❌ JSON Parsing Error:", error.message, "Message received:", message);
     }
 });
 
-console.log("🔄 Queue Worker is listening for queue updates...");
+// console.log("🔄 Queue Worker is listening for queue updates...");
 
 module.exports = processQueue;

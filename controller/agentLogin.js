@@ -7,6 +7,7 @@ const VALID_QUERY_TYPES = ["Billing", "Technical Support", "General Inquiry"]; /
 const agentLogin = async (req, res, next) => {
     try {
         const { agentId, password, companyName } = req.body;
+        console.log("agentId, password, companyName", agentId, password, companyName);        
 
         if (!agentId || !password) {
             return res.status(400).json({ message: 'AgentId, password, and queryType are required!' });
