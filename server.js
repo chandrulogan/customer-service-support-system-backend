@@ -80,7 +80,7 @@ io.on("connection", (socket) => {
         console.log(`Chat ended by ${userType} in room ${roomId}`);
 
         // Optionally broadcast to the other user
-        socket.broadcast.to(roomId).emit("chatEnded", { message: "Chat has been ended." });
+        socket.broadcast.to(roomId).emit("chatEnded", { message: `${userType} has ended chat.` });
         socket.leave(roomId)
         // Save end event in DB if needed
     });
