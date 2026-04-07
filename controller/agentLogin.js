@@ -1,4 +1,4 @@
-const redis = require('../redisClient'); // Import the Redis client
+const { redis, isRedisReady } = require('../redisClient');
 const Employee = require('../schema/employee_Schema');
 const jwt = require('jsonwebtoken');
 
@@ -43,6 +43,10 @@ const agentLogin = async (req, res, next) => {
 const addAgentToQueue = async (req, res, next) => {
     const { agentId, queryType, tenentId } = req.body;
 
+    if (!isRedisReady()) {
+        return res.status(503).json({ message: 'Queue service is unavailable. Check Redis configuration.' });
+    }
+
     // // Find agent in DB
     const agent = await Employee.findOne({ agentId });
 
@@ -74,6 +78,10 @@ const removeAgentFromQueue = async (req, res, next) => {
     const { agentId, queryType } = req.body;
 
     try {
+        if (!isRedisReady()) {
+            return res.status(503).json({ message: 'Queue service is unavailable. Check Redis configuration.' });
+        }
+
         // 1. Validate agent
         const agent = await Employee.findOne({ agentId });
 

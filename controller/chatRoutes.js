@@ -4,7 +4,7 @@ const Chat = require("../schema/chat_Schema");
 const router = express.Router();
 
 // configs
-const redis = require('../redisClient');
+const { redis, isRedisReady } = require('../redisClient');
 const { getSocketInstance } = require("../socket");
 
 
@@ -80,6 +80,10 @@ router.get("/chat-history/:roomId", async (req, res) => {
 router.post("/decline", async(req, res) => {
     const { queueType, data  } = req.body
     // console.log("req", req.body);
+
+    if (!isRedisReady()) {
+        return res.status(503).json({ message: 'Queue service is unavailable. Check Redis configuration.' });
+    }
 
     await redis.rpush(`customerQueue:${queueType}`, JSON.stringify(data));
 

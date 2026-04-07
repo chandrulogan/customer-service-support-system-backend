@@ -5,13 +5,17 @@ const bcrypt = require('bcryptjs');
 const Customer = require('../schema/customers_Schema');
 
 // configs
-const redis = require('../redisClient'); // Import Redis client
+const { redis, isRedisReady } = require('../redisClient');
 
 const VALID_QUERY_TYPES = ["Billing", "Technical Support", "General Inquiry"]; // Allowed types
 
 const customerConnect = async (req, res, next) => {
     try {
         const { name, connect_Reason, mobileNumber, uniqueID } = req.body;        
+
+        if (!isRedisReady()) {
+            return res.status(503).json({ message: 'Queue service is unavailable. Check Redis configuration.' });
+        }
 
         if (!name || !connect_Reason) {
             return res.status(400).json({ message: 'Name and connect reason are required!' });
